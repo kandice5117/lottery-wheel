@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>77大转盘抽奖</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(160deg, #fdf2f8 0%, #f0f9ff 40%, #f5f3ff 70%, #fce7f3 100%);
+      min-height: 100vh;
+      color: #7c3aed;
+      overflow-x: hidden;
+      position: relative;
+    }
+    .bg-deco {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .bubble {
+      position: absolute; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,182,255,0.25) 40%, rgba(186,230,253,0.15));
+      box-shadow: inset 0 0 12px rgba(255,255,255,0.8), 0 0 8px rgba(255,192,255,0.3);
+      animation: float 8s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-18px) scale(1.05); }
+    }
+    .container {
+      max-width: 480px; margin: 0 auto; padding: 16px 16px 40px;
+      position: relative; z-index: 1;
+    }
+    .title {
+      text-align: center; font-size: 34px; font-weight: 800;
+      background: linear-gradient(135deg, #e879f9, #a78bfa, #7dd3fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin: 10px 0 4px; letter-spacing: 3px;
+    }
+    .subtitle {
+      text-align: center; font-size: 13px; color: #c084fc; margin-bottom: 14px;
+      letter-spacing: 1px;
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .user-box {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      border-radius: 20px; padding: 16px;
+      margin-bottom: 12px;
+      border: 2px solid rgba(255,192,255,0.5);
+      box-shadow: 0 8px 32px rgba(232,121,249,0.12), inset 0 1px 0 rgba(255,255,255,0.8);
+    }
+    .user-box label {
+      display: block; font-size: 13px; color: #a78bfa; margin-bottom: 6px; font-weight: 600;
+    }
+    .user-box input {
+      width: 100%; padding: 12px 14px;
+      border: 2px solid #fbcfe8; border-radius: 14px;
+      font-size: 15px; outline: none; color: #7c3aed;
+      background: linear-gradient(180deg, #fdf4ff, #f0f9ff);
+    }
+    .user-box input:focus { border-color: #e879f9; }
+    .user-box input[readonly] { background: #f5f3ff; color: #6b21a8; }
+    .remain-tip {
+      text-align: center; font-size: 14px; color: #a78bfa; margin-bottom: 10px;
+    }
+    .remain-tip span {
+      font-weight: 800; color: #ec4899; font-size: 20px;
+    }
+    .wheel-wrap {
+      position: relative; width: 320px; height: 320px; margin: 0 auto 20px;
+    }
+    .wheel-bg {
+      width: 100%; height: 100%; border-radius: 50%;
+      background: #fff;
+      box-shadow:
+        0 0 0 6px rgba(255,255,255,0.9),
+        0 0 0 12px rgba(251,207,232,0.6),
+        0 12px 40px rgba(167,139,250,0.25);
+      position: relative; overflow: hidden;
+    }
+    canvas { width: 100%; height: 100%; border-radius: 50%; }
+    .pointer {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      z-index: 10; filter: drop-shadow(0 3px 6px rgba(236,72,153,0.4));
+    }
+    .pointer-inner {
+      width: 0; height: 0;
+      border-left: 14px solid transparent;
+      border-right: 14px solid transparent;
+      border-top: 28px solid #ec4899;
+      position: relative;
+    }
+    .pointer-inner::after {
+      content: ''; position: absolute; top: -32px; left: -8px;
+      width: 16px; height: 16px; background: #fff;
+      border: 3px solid #ec4899; border-radius: 50%;
+    }
+    .center-btn {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 68px; height: 68px; border-radius: 50%;
+      background: linear-gradient(145deg, #f9a8d4, #c084fc, #7dd3fc);
+      border: 4px solid #fff;
+      box-shadow: 0 6px 20px rgba(192,132,252,0.5), inset 0 2px 8px rgba(255,255,255,0.6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 800; color: #fff;
+      cursor: pointer; z-index: 5; transition: transform 0.15s;
+    }
+    .center-btn:active { transform: translate(-50%, -50%) scale(0.9); }
+    .center-btn.disabled { opacity: 0.55; pointer-events: none; }
+    .admin-card {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(10px);
+      border-radius: 20px; padding: 16px;
+      margin-bottom: 14px;
+      border: 2px solid rgba(233,213,255,0.6);
+      box-shadow: 0 8px 28px rgba(167,139,250,0.1);
+    }
+    .admin-card h3 {
+      font-size: 15px; color: #a78bfa; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .prize-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .prize-item {
+      background: linear-gradient(135deg, #fdf4ff, #f0f9ff);
+      border-radius: 14px; padding: 10px;
+      font-size: 13px; display: flex; align-items: center; gap: 6px;
+      border: 1px solid rgba(251,207,232,0.5);
+    }
+    .prize-item .num {
+      width: 22px; height: 22px;
+      background: linear-gradient(135deg, #e879f9, #a78bfa);
+      color: #fff; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+    .form-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .form-row label { font-size: 14px; white-space: nowrap; color: #7c3aed; }
+    .form-row input {
+      flex: 1; padding: 10px 12px;
+      border: 2px solid #fbcfe8; border-radius: 12px;
+      font-size: 15px; outline: none; color: #6b21a8; background: #fdf4ff;
+    }
+    .btn {
+      background: linear-gradient(135deg, #e879f9, #a78bfa, #7dd3fc);
+      color: #fff; border: none; padding: 12px 20px;
+      border-radius: 14px; font-size: 15px; font-weight: 600;
+      cursor: pointer; width: 100%; margin-top: 8px;
+      box-shadow: 0 4px 16px rgba(167,139,250,0.35);
+    }
+    .btn:active { opacity: 0.85; }
+    .btn-outline { background: #fff; color: #a78bfa; border: 2px solid #e9d5ff; box-shadow: none; }
+    .btn-danger { background: linear-gradient(135deg, #f9a8d4, #ec4899); }
+    .record-list { max-height: 320px; overflow-y: auto; }
+    .record-item {
+      background: linear-gradient(135deg, #fdf4ff, #f0f9ff);
+      border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 14px; border: 1px solid rgba(251,207,232,0.4);
+    }
+    .record-item .name { font-weight: 600; color: #6b21a8; }
+    .record-item .prize-name { color: #ec4899; font-weight: 700; }
+    .record-item .time { font-size: 11px; color: #a78bfa; margin-top: 2px; }
+    .empty { text-align: center; color: #c084fc; padding: 28px 0; font-size: 14px; }
+    .footer { text-align: center; font-size: 12px; color: #c084fc; margin-top: 20px; opacity: 0.75; }
+    .modal {
+      position: fixed; inset: 0; background: rgba(120,80,160,0.4);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 20px; backdrop-filter: blur(4px);
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: linear-gradient(180deg, #fff, #fdf4ff);
+      border-radius: 28px; padding: 28px 24px; text-align: center;
+      max-width: 300px; width: 100%;
+      box-shadow: 0 20px 60px rgba(167,139,250,0.3);
+      border: 3px solid rgba(251,207,232,0.6);
+      animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes pop {
+      from { transform: scale(0.6); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-content h3 { font-size: 22px; color: #a78bfa; margin-bottom: 10px; }
+    .modal-content .prize {
+      font-size: 26px; font-weight: 800; color: #ec4899; margin: 14px 0;
+    }
+    .modal-content button {
+      background: linear-gradient(135deg, #e879f9, #a78bfa);
+      color: #fff; border: none; padding: 12px 40px;
+      border-radius: 30px; font-size: 16px; font-weight: 600; cursor: pointer;
+    }
+    .music-btn {
+      position: fixed; top: 14px; right: 14px; z-index: 50;
+      width: 42px; height: 42px; border-radius: 50%;
+      background: rgba(255,255,255,0.9);
+      border: 2px solid #fbcfe8;
+      box-shadow: 0 4px 12px rgba(167,139,250,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-deco" id="bgDeco"></div>
+  <div class="music-btn" id="musicBtn" title="开关背景音乐">🎵</div>
+
+  <div class="container">
+    <div class="title" id="secretTitle">77大转盘</div>
+    <div class="subtitle">幸运抽奖 · 好礼不断 ✨</div>
+
+    <!-- 顾客端 -->
+    <div class="panel active" id="panel-customer">
+      <div class="user-box">
+        <label>请输入你的昵称 / 手机号</label>
+        <input type="text" id="userName" placeholder="例如：小明 / 138xxxx" maxlength="20">
+      </div>
+      <div class="remain-tip">剩余抽奖次数：<span id="remainCount">0</span> 次</div>
+
+      <div class="wheel-wrap">
+        <div class="pointer"><div class="pointer-inner"></div></div>
+        <div class="wheel-bg">
+          <canvas id="wheelCanvas" width="640" height="640"></canvas>
+        </div>
+        <div class="center-btn" id="spinBtn">抽奖</div>
+      </div>
+
+      <div class="admin-card">
+        <h3>🎁 奖品一览</h3>
+        <div class="prize-list" id="prizeList"></div>
+      </div>
+    </div>
+
+    <!-- 商家端 -->
+    <div class="panel" id="panel-admin" style="display:none;">
+      <div class="admin-card">
+        <h3>🎁 邀请顾客抽奖</h3>
+        <div style="font-size:13px;color:#a78bfa;margin-bottom:12px;line-height:1.5">
+          填写顾客昵称和可抽次数，生成专属链接发给顾客。<br>
+          顾客点开后昵称自动填好，直接抽奖。
+        </div>
+        <div class="form-row">
+          <label>顾客昵称</label>
+          <input type="text" id="inviteName" placeholder="例如：小明" maxlength="20">
+        </div>
+        <div class="form-row">
+          <label>可抽次数</label>
+          <input type="number" id="inviteSpins" min="1" max="99" value="1">
+          <span>次</span>
+        </div>
+        <button class="btn" id="genInviteBtn">生成邀请链接</button>
+        <div id="inviteResult" style="display:none;margin-top:14px;">
+          <div style="font-size:13px;color:#a78bfa;margin-bottom:6px;">专属链接（已复制）：</div>
+          <div id="inviteLink" style="background:#fdf4ff;border:2px solid #fbcfe8;border-radius:12px;padding:10px;font-size:12px;word-break:break-all;color:#6b21a8;line-height:1.4;"></div>
+          <button class="btn btn-outline" id="copyInviteBtn" style="margin-top:8px;">再次复制链接</button>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <h3>⚙️ 默认抽奖次数</h3>
+        <div class="form-row">
+          <label>未指定时默认</label>
+          <input type="number" id="maxSpins" min="1" max="99" value="1">
+          <span>次</span>
+        </div>
+        <button class="btn" id="saveSettings">保存默认设置</button>
+      </div>
+
+      <div class="admin-card">
+        <h3>🎯 中奖概率设置</h3>
+        <div style="font-size:12px;color:#a78bfa;margin-bottom:10px;line-height:1.6">
+          为每个奖品设置<b>权重</b>：数值越大，被抽中的概率越高。<br>
+          全部填相同数字 = 完全平均；设为 0 = 该奖品不会被抽中。
+        </div>
+        <div id="weightList" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button class="btn" id="saveWeightsBtn" style="margin-top:10px">保存概率设置</button>
+      </div>
+
+      <div class="admin-card">
+        <h3>📋 中奖记录</h3>
+        <div class="record-list" id="recordList">
+          <div class="empty">暂无抽奖记录</div>
+        </div>
+        <button class="btn btn-outline" id="exportBtn" style="margin-top:12px">导出记录（复制）</button>
+        <button class="btn btn-danger" id="clearBtn" style="margin-top:8px">清空所有记录</button>
+      </div>
+
+      <div class="admin-card">
+        <h3>💡 使用说明</h3>
+        <div style="font-size:13px;line-height:1.7;color:#7c3aed">
+          <b>进入商家端：</b>快速连续点击标题「77大转盘」5次<br><br>
+          1. 在「邀请顾客抽奖」填写昵称 + 次数<br>
+          2. 点「生成邀请链接」，链接自动复制<br>
+          3. 把链接发给对应顾客（微信）<br>
+          4. 顾客点开即可直接抽奖<br>
+          5. 抽到「再来一次」不消耗次数<br>
+          6. 所有中奖记录在这里查看
+        </div>
+      </div>
+      <button class="btn btn-outline" id="backToCustomer" style="margin-top:8px">← 返回抽奖页面</button>
+    </div>
+
+    <div class="footer">77大转盘 · 商家专属抽奖工具</div>
+  </div>
+
+  <!-- 结果弹窗 -->
+  <div class="modal" id="resultModal">
+    <div class="modal-content">
+      <h3 id="modalTitle">🎉 恭喜中奖！</h3>
+      <div class="prize" id="resultPrize">再来一次</div>
+      <button id="closeModal">好的</button>
+    </div>
+  </div>
+
+  <script>
+    const prizes = [
+      { id: 1, name: '再来一次', color: '#e0e7ff', textColor: '#4338ca' },
+      { id: 2, name: '储值+52', color: '#fce7f3', textColor: '#9d174d' },
+      { id: 3, name: '95折卡*1', color: '#fef3c7', textColor: '#92400e' },
+      { id: 4, name: '点单表情包*1', color: '#dbeafe', textColor: '#1e40af' },
+      { id: 5, name: '95折卡*3', color: '#fbcfe8', textColor: '#9d174d' },
+      { id: 6, name: '啵啵奶茶*1', color: '#d1fae5', textColor: '#065f46' }
+    ];
+
+    let isSpinning = false;
+    let currentRotation = 0;
+    let bgmPlaying = false;
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    const size = 640;
+    const center = size / 2;
+    const radius = size / 2 - 8;
+
+    /* ===== 可爱欢快背景音乐 & 音效（Web Audio 合成，无需外部文件） ===== */
+    let audioCtx = null;
+    let bgmScheduler = null;
+    let bgmNextTime = 0;
+    let bgmStepIndex = 0;
+    const BGM_BPM = 148;                  // 欢快活泼的节奏
+    const BGM_STEP = 60 / BGM_BPM / 2;    // 八分音符步长（秒）
+    // 活泼可爱的旋律（C大调）：midi音高，0=休止；每个数字占一个八分音符
+    const BGM_MELODY = [
+      72,76,79,76,  77,81,79,76,  72,74,76,77,  79,79,76,0,
+      72,76,79,76,  77,81,79,76,  74,76,77,79,  77,76,72,0,
+      79,81,84,81,  79,77,76,74,  76,77,79,77,  76,74,72,0,
+      72,76,79,76,  77,81,79,76,  74,79,77,76,  72,0,0,0
+    ];
+    // 低音伴奏：0=休止，每两个八分音符一个低音
+    const BGM_BASS = [
+      48,0,55,0,  53,0,55,0,  48,0,55,0,  53,0,55,0,
+      48,0,55,0,  53,0,55,0,  50,0,57,0,  55,0,57,0,
+      55,0,60,0,  57,0,55,0,  53,0,55,0,  57,0,55,0,
+      48,0,55,0,  53,0,55,0,  48,0,55,0,  48,0,0,0
+    ];
+
+    function ensureAudio() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function tone(freq, start, dur, vol, type, dest, glideTo) {
+      const ctx = audioCtx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.setValueAtTime(freq, start);
+      if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, start + dur);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(vol, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      osc.connect(gain); gain.connect(dest || ctx.destination);
+      osc.start(start); osc.stop(start + dur + 0.05);
+    }
+
+    function playNote(midi, start, dur, vol, type, dest) {
+      if (!midi) return;
+      const f = 440 * Math.pow(2, (midi - 69) / 12);
+      tone(f, start, dur, vol, type, dest);
+    }
+
+    function scheduleBgm() {
+      if (!bgmPlaying) return;
+      const ctx = audioCtx;
+      // 每次调度约 0.5 秒的音乐，并安排下一轮
+      while (bgmNextTime < ctx.currentTime + 0.6) {
+        const idx = bgmStepIndex % BGM_MELODY.length;
+        const bassIdx = bgmStepIndex % BGM_BASS.length;
+        const t = bgmNextTime;
+        const note = BGM_MELODY[idx];
+        const bass = BGM_BASS[bassIdx];
+        // 主旋律：俏皮的小号/方波音色，轻声
+        if (note) playNote(note, t, BGM_STEP * 0.9, 0.09, 'triangle');
+        // 低音
+        if (bass) playNote(bass, t, BGM_STEP * 1.6, 0.10, 'sine');
+        // 偶尔高音装饰（让旋律更可爱）
+        if (idx % 8 === 4 && note) playNote(note + 12, t, BGM_STEP * 0.4, 0.03, 'sine');
+        bgmNextTime += BGM_STEP;
+        bgmStepIndex++;
+      }
+      bgmScheduler = setTimeout(scheduleBgm, 250);
+    }
+
+    function playClick() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      tone(700, t, 0.07, 0.10, 'triangle', null, 500);
+    }
+    function playSpin() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      // 快速的上升螺旋音
+      for (let i = 0; i < 8; i++) {
+        tone(400 + i * 90, t + i * 0.06, 0.05, 0.05, 'sine');
+      }
+    }
+    function playWin() {
+      const ctx = ensureAudio();
+      const t = ctx.currentTime;
+      // 欢快的中奖琶音
+      [72,76,79,84].forEach(function(m, i) {
+        playNote(m, t + i * 0.12, 0.2, 0.12, 'triangle');
+      });
+      playNote(88, t + 0.48, 0.35, 0.12, 'triangle');
+    }
+
+    function playSfx(id) {
+      if (id === 'sfxClick') playClick();
+      else if (id === 'sfxSpin') playSpin();
+      else if (id === 'sfxWin') playWin();
+    }
+
+    function createDeco() {
+      const box = document.getElementById('bgDeco');
+      for (let i = 0; i < 14; i++) {
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        const s = 10 + Math.random() * 40;
+        b.style.width = s + 'px';
+        b.style.height = s + 'px';
+        b.style.left = Math.random() * 100 + '%';
+        b.style.top = Math.random() * 100 + '%';
+        b.style.animationDelay = (Math.random() * 6) + 's';
+        b.style.animationDuration = (6 + Math.random() * 6) + 's';
+        box.appendChild(b);
+      }
+    }
+
+    function getSettings() {
+      const s = localStorage.getItem('lottery_settings');
+      return s ? JSON.parse(s) : { maxSpins: 1 };
+    }
+    function saveSettings(data) {
+      localStorage.setItem('lottery_settings', JSON.stringify(data));
+    }
+    function getRecords() {
+      const r = localStorage.getItem('lottery_records');
+      return r ? JSON.parse(r) : [];
+    }
+    function saveRecords(list) {
+      localStorage.setItem('lottery_records', JSON.stringify(list));
+    }
+    /* ===== 中奖概率（权重）设置 ===== */
+    function getWeights() {
+      const w = localStorage.getItem('lottery_weights');
+      if (w) {
+        const arr = JSON.parse(w);
+        if (arr && arr.length === prizes.length) return arr;
+      }
+      return prizes.map(function() { return 1; }); // 默认全部相同=完全平均
+    }
+    function saveWeights(arr) {
+      localStorage.setItem('lottery_weights', JSON.stringify(arr));
+    }
+    function pickWeightedIndex() {
+      const w = getWeights();
+      const total = w.reduce(function(a, b) { return a + (b > 0 ? b : 0); }, 0);
+      if (total <= 0) return Math.floor(Math.random() * prizes.length);
+      let r = Math.random() * total;
+      for (let i = 0; i < w.length; i++) {
+        const v = w[i] > 0 ? w[i] : 0;
+        r -= v;
+        if (r <= 0) return i;
+      }
+      return w.length - 1;
+    }
+    function getUserSpins(name) {
+      const v = localStorage.getItem('spins_' + name);
+      return v ? parseInt(v) : 0;
+    }
+    function setUserSpins(name, count) {
+      localStorage.setItem('spins_' + name, count);
+    }
+    function getUserMaxSpins(name) {
+      const v = localStorage.getItem('maxspins_' + name);
+      if (v) return parseInt(v);
+      return getSettings().maxSpins;
+    }
+    function setUserMaxSpins(name, count) {
+      localStorage.setItem('maxspins_' + name, count);
+    }
+
+    function speak(text, rate) {
+      try {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = rate || 1.05;
+        u.pitch = 1.3;
+        u.volume = 1;
+        const voices = window.speechSynthesis.getVoices();
+        const prefer = voices.find(function(v) {
+          return v.lang.includes('zh') && (v.name.includes('Female') || v.name.includes('女') || v.name.includes('Ting') || v.name.includes('Xiaoxiao') || v.name.includes('Hui'));
+        });
+        if (prefer) u.voice = prefer;
+        else {
+          const zh = voices.find(function(v) { return v.lang.includes('zh'); });
+          if (zh) u.voice = zh;
+        }
+        window.speechSynthesis.speak(u);
+      } catch(e) {}
+    }
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
+    }
+
+    function drawWheel(rotation) {
+      rotation = rotation || 0;
+      ctx.clearRect(0, 0, size, size);
+      const arc = (2 * Math.PI) / prizes.length;
+
+      prizes.forEach(function(p, i) {
+        const start = rotation + i * arc - Math.PI / 2;
+        const end = start + arc;
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.arc(center, center, radius, start, end);
+        ctx.closePath();
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.lineWidth = 5;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(start + arc / 2);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = p.textColor;
+        ctx.font = 'bold 26px "PingFang SC", "Microsoft YaHei", sans-serif';
+        const name = p.name;
+        if (name.length > 5) {
+          ctx.fillText(name.slice(0, 4), radius * 0.62, -6);
+          ctx.fillText(name.slice(4), radius * 0.62, 20);
+        } else {
+          ctx.fillText(name, radius * 0.62, 8);
+        }
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillStyle = '#a78bfa';
+        ctx.fillText(p.id, radius * 0.28, 7);
+        ctx.restore();
+      });
+
+      ctx.beginPath();
+      ctx.arc(center, center, 48, 0, 2 * Math.PI);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(251,207,232,0.6)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    function spin() {
+      if (isSpinning) return;
+      const name = document.getElementById('userName').value.trim();
+      if (!name) {
+        alert('请先输入你的昵称或手机号～');
+        return;
+      }
+      const maxAllowed = getUserMaxSpins(name);
+      const used = getUserSpins(name);
+      if (used >= maxAllowed) {
+        alert('你的抽奖次数已用完啦～');
+        updateRemain();
+        return;
+      }
+
+      isSpinning = true;
+      document.getElementById('spinBtn').classList.add('disabled');
+      document.getElementById('spinBtn').textContent = '抽奖中';
+      playSfx('sfxClick');
+      setTimeout(function() { playSfx('sfxSpin'); }, 180);
+
+      const winIndex = pickWeightedIndex();
+      const arc = 360 / prizes.length;
+      const targetAngle = 360 * 6 + (360 - winIndex * arc - arc / 2);
+      const startRotation = currentRotation;
+      const duration = 4800;
+      const startTime = performance.now();
+
+      function animate(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        currentRotation = startRotation + (targetAngle - (startRotation % 360)) * ease;
+        drawWheel((currentRotation % 360) * Math.PI / 180);
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          document.getElementById('spinBtn').classList.remove('disabled');
+          document.getElementById('spinBtn').textContent = '抽奖';
+          currentRotation = currentRotation % 360;
+
+          const prize = prizes[winIndex];
+          const records = getRecords();
+          records.unshift({
+            name: name,
+            prize: prize.name,
+            time: new Date().toLocaleString('zh-CN')
+          });
+          saveRecords(records);
+
+          if (prize.name !== '再来一次') {
+            setUserSpins(name, used + 1);
+          }
+          updateRemain();
+          renderRecords();
+
+          if (prize.name === '再来一次') {
+            document.getElementById('modalTitle').textContent = '🎯 再来一次！';
+            speak('再来一次', 1.25);
+          } else {
+            document.getElementById('modalTitle').textContent = '🎉 恭喜中奖！';
+            playSfx('sfxWin');
+            setTimeout(function() { speak('恭喜中奖', 1.0); }, 280);
+          }
+
+          document.getElementById('resultPrize').textContent = prize.name;
+          document.getElementById('resultModal').classList.add('show');
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function updateRemain() {
+      const name = document.getElementById('userName').value.trim();
+      if (!name) {
+        document.getElementById('remainCount').textContent = getSettings().maxSpins;
+        return;
+      }
+      const used = getUserSpins(name);
+      const maxAllowed = getUserMaxSpins(name);
+      document.getElementById('remainCount').textContent = Math.max(0, maxAllowed - used);
+    }
+
+    function renderPrizeList() {
+      document.getElementById('prizeList').innerHTML = prizes.map(function(p) {
+        return '<div class="prize-item"><div class="num">' + p.id + '</div><span>' + p.name + '</span></div>';
+      }).join('');
+    }
+
+    function renderRecords() {
+      const list = getRecords();
+      const box = document.getElementById('recordList');
+      if (list.length === 0) {
+        box.innerHTML = '<div class="empty">暂无抽奖记录</div>';
+        return;
+      }
+      box.innerHTML = list.map(function(r) {
+        return '<div class="record-item"><div><div class="name">' + r.name + '</div><div class="time">' + r.time + '</div></div><div class="prize-name">' + r.prize + '</div></div>';
+      }).join('');
+    }
+
+    function renderWeights() {
+      const w = getWeights();
+      const box = document.getElementById('weightList');
+      box.innerHTML = prizes.map(function(p, i) {
+        return '<div class="form-row"><label style="flex:1;white-space:normal">' + p.name + '</label>' +
+          '<input type="number" id="weight_' + i + '" min="0" max="100" value="' + w[i] + '" style="max-width:80px">' +
+          '<span style="white-space:nowrap">权重</span></div>';
+      }).join('');
+    }
+
+    function loadAdmin() {
+      document.getElementById('maxSpins').value = getSettings().maxSpins;
+      renderWeights();
+      renderRecords();
+    }
+
+    document.getElementById('saveWeightsBtn').addEventListener('click', function() {
+      const arr = prizes.map(function(p, i) {
+        let v = parseInt(document.getElementById('weight_' + i).value);
+        if (isNaN(v)) v = 1;
+        return Math.max(0, Math.min(100, v));
+      });
+      saveWeights(arr);
+      const total = arr.reduce(function(a, b) { return a + b; }, 0);
+      alert('概率设置已保存！' + (total <= 0 ? '\n注意：所有权重为0，将无法抽中任何奖品。' : ''));
+    });
+
+    document.getElementById('spinBtn').addEventListener('click', spin);
+    document.getElementById('userName').addEventListener('input', updateRemain);
+
+    document.getElementById('saveSettings').addEventListener('click', function() {
+      const max = parseInt(document.getElementById('maxSpins').value) || 1;
+      saveSettings({ maxSpins: Math.max(1, Math.min(99, max)) });
+      alert('设置已保存！');
+      updateRemain();
+    });
+
+    document.getElementById('closeModal').addEventListener('click', function() {
+      document.getElementById('resultModal').classList.remove('show');
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', function() {
+      if (confirm('确定要清空所有中奖记录吗？')) {
+        saveRecords([]);
+        Object.keys(localStorage).forEach(function(k) {
+          if (k.startsWith('spins_') || k.startsWith('maxspins_')) localStorage.removeItem(k);
+        });
+        renderRecords();
+        updateRemain();
+        alert('已清空');
+      }
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', function() {
+      const list = getRecords();
+      if (list.length === 0) { alert('暂无记录'); return; }
+      const text = list.map(function(r) { return r.time + ' | ' + r.name + ' | ' + r.prize; }).join('\n');
+      navigator.clipboard.writeText(text).then(function() { alert('已复制到剪贴板'); }).catch(function() { prompt('复制：', text); });
+    });
+
+    document.getElementById('backToCustomer').addEventListener('click', function() {
+      document.getElementById('panel-admin').style.display = 'none';
+      document.getElementById('panel-customer').style.display = 'block';
+      document.getElementById('panel-customer').classList.add('active');
+    });
+
+    let clickCount = 0, clickTimer = null;
+    document.getElementById('secretTitle').addEventListener('click', function() {
+      clickCount++;
+      if (clickTimer) clearTimeout(clickTimer);
+      clickTimer = setTimeout(function() { clickCount = 0; }, 800);
+      if (clickCount >= 5) {
+        clickCount = 0;
+        document.getElementById('panel-customer').style.display = 'none';
+        document.getElementById('panel-admin').style.display = 'block';
+        loadAdmin();
+      }
+    });
+
+    document.getElementById('genInviteBtn').addEventListener('click', function() {
+      const name = document.getElementById('inviteName').value.trim();
+      const spins = parseInt(document.getElementById('inviteSpins').value) || 1;
+      if (!name) { alert('请填写顾客昵称'); return; }
+      setUserMaxSpins(name, spins);
+      const base = location.href.split('?')[0];
+      const link = base + '?name=' + encodeURIComponent(name) + '&spins=' + spins;
+      document.getElementById('inviteLink').textContent = link;
+      document.getElementById('inviteResult').style.display = 'block';
+      navigator.clipboard.writeText(link).then(function() {
+        alert('邀请链接已生成并复制！\n请发给「' + name + '」');
+      }).catch(function() { alert('链接已生成，请手动复制'); });
+    });
+
+    document.getElementById('copyInviteBtn').addEventListener('click', function() {
+      const link = document.getElementById('inviteLink').textContent;
+      navigator.clipboard.writeText(link).then(function() { alert('已复制'); }).catch(function() { prompt('复制：', link); });
+    });
+
+    document.getElementById('musicBtn').addEventListener('click', function() {
+      const ctx = ensureAudio();
+      if (bgmPlaying) {
+        bgmPlaying = false;
+        if (bgmScheduler) { clearTimeout(bgmScheduler); bgmScheduler = null; }
+        document.getElementById('musicBtn').textContent = '🎵';
+      } else {
+        bgmPlaying = true;
+        bgmNextTime = ctx.currentTime + 0.1;
+        bgmStepIndex = 0;
+        document.getElementById('musicBtn').textContent = '🔊';
+        scheduleBgm();
+      }
+    });
+
+    function handleInviteParams() {
+      const params = new URLSearchParams(location.search);
+      const name = params.get('name');
+      const spins = params.get('spins');
+      if (name) {
+        document.getElementById('userName').value = decodeURIComponent(name);
+        if (spins) setUserMaxSpins(decodeURIComponent(name), parseInt(spins) || 1);
+        document.getElementById('userName').readOnly = true;
+      }
+    }
+
+    createDeco();
+    drawWheel();
+    renderPrizeList();
+    handleInviteParams();
+    updateRemain();
+  </script>
+</body>
+</html>
