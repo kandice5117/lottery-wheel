@@ -471,7 +471,7 @@
         const arr = JSON.parse(w);
         if (arr && arr.length === prizes.length) return arr;
       }
-      return prizes.map(function() { return 1; }); // 默认全部相同=完全平均
+      return [1709, 1365, 1800, 1709, 1709, 1709]; // 默认权重：再来一次17.09%、储值+52 13.65%、95折卡*1 18%、其余各17.09%
     }
     function saveWeights(arr) {
       localStorage.setItem('lottery_weights', JSON.stringify(arr));
